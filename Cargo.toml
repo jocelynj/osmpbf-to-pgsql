@@ -1,0 +1,22 @@
+[package]
+name = "osmpbf-to-pgsql"
+version = "0.1.0"
+edition = "2024"
+description = "Dump an OpenStreetMap PBF file to Osmosis pg-snashot format"
+license = "MIT"
+
+[dependencies]
+anstyle = "1.0.14"
+chrono = "0.4.44"
+clap = { version = "4.6.0", features = ["derive"] }
+geo-types = "0.7.18"
+geozero = { version = "0.14.0", features = ["with-postgis-postgres"] }
+itertools = "0.14.0"
+osmpbfreader = { version = "0.19.1", features = ["full-metadata"] }
+#osmpbfreader = { version = "0.19.0" }
+postgres = "0.19.12"
+postgres-types = { version = "0.2.12", features = ["with-chrono-0_4", "with-geo-types-0_7"] }
+rustc-hash = "2.1.1"
+
+[patch.crates-io]
+osmpbfreader = { git = "https://github.com/jocelynj/osmpbfreader-rs.git" }
