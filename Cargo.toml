@@ -17,6 +17,7 @@ osmpbfreader = { version = "0.19.1", features = ["full-metadata"] }
 postgres = "0.19.12"
 postgres-types = { version = "0.2.12", features = ["with-chrono-0_4", "with-geo-types-0_7"] }
 rustc-hash = "2.1.1"
+smartstring = "1.0.1"
 
 [patch.crates-io]
 osmpbfreader = { git = "https://github.com/jocelynj/osmpbfreader-rs.git" }

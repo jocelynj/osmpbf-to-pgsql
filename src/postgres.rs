@@ -8,6 +8,7 @@ use itertools::Itertools;
 use osmpbfreader::objects::{Node, Relation, Tags, Way};
 use postgres::{Client, NoTls};
 use rustc_hash::FxHashMap;
+use std::error::Error;
 use std::fs::File;
 use std::io;
 use std::io::{BufWriter, Write};
@@ -26,12 +27,14 @@ struct Copy {
     way_nodes: BufWriter<File>,
     relations: BufWriter<File>,
     relation_members: BufWriter<File>,
+    users: BufWriter<File>,
 }
 
 pub struct Postgres {
     statements: Option<Statements>,
     copy: Copy,
     nodes: FxHashMap<i64, Coord>,
+    users: FxHashMap<i32, smartstring::alias::String>,
 }
 
 impl Postgres {
@@ -61,18 +64,21 @@ impl Postgres {
         let relation_members = BufWriter::new(
             File::create(Path::new(&copy_dir).join("relation_members.txt")).unwrap(),
         );
+        let users = BufWriter::new(File::create(Path::new(&copy_dir).join("users.txt")).unwrap());
         let copy = Copy {
             nodes,
             ways,
             way_nodes,
             relations,
             relation_members,
+            users,
         };
 
         Self {
             copy,
             statements,
             nodes: FxHashMap::default(),
+            users: FxHashMap::default(),
         }
     }
 
@@ -124,7 +130,22 @@ impl Postgres {
         s
     }
 
+    pub fn escape_string(s: &str) -> String {
+        let mut out = String::with_capacity(s.len());
+        for c in s.chars() {
+            match c {
+                '\\' => out.push_str("\\\\"),
+                '\n' => out.push_str("\\n"),
+                '\r' => out.push_str("\\r"),
+                '\t' => out.push_str("\\t"),
+                _ => out.push(c),
+            }
+        }
+        out
+    }
+
     pub fn escape_key_value(s: &str) -> String {
+        // Differs from escape_string() as " is escaped with 2 slashes instead of 0.
         let mut out = String::with_capacity(s.len());
         for c in s.chars() {
             match c {
@@ -182,6 +203,11 @@ impl OsmWriter for Postgres {
             "{id}\t{version}\t{user_id}\t{timestamp}\t{changeset_id}\t{tags}\t{point}"
         )
         .unwrap();
+
+        self.users
+            .entry(user_id)
+            .or_insert_with(|| info.user.as_ref().unwrap().clone());
+
         Ok(())
     }
     fn write_way(&mut self, way: &Way) -> Result<(), io::Error> {
@@ -234,6 +260,11 @@ impl OsmWriter for Postgres {
         for (i, node) in nodes.iter().enumerate() {
             writeln!(self.copy.way_nodes, "{id}\t{node}\t{i}").unwrap();
         }
+
+        self.users
+            .entry(user_id)
+            .or_insert_with(|| info.user.as_ref().unwrap().clone());
+
         Ok(())
     }
     fn write_relation(&mut self, relation: &Relation) -> Result<(), io::Error> {
@@ -268,6 +299,16 @@ impl OsmWriter for Postgres {
             .unwrap();
         }
 
+        self.users
+            .entry(user_id)
+            .or_insert_with(|| info.user.as_ref().unwrap().clone());
+
+        Ok(())
+    }
+    fn write_end(&mut self, _change: bool) -> Result<(), Box<dyn Error>> {
+        for (uid, name) in self.users.iter() {
+            writeln!(self.copy.users, "{uid}\t{}", Self::escape_string(name)).unwrap();
+        }
         Ok(())
     }
 }
