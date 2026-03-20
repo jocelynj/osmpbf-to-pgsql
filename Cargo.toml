@@ -22,3 +22,6 @@ tempfile = "3.27.0"
 
 [patch.crates-io]
 osmpbfreader = { git = "https://github.com/jocelynj/osmpbfreader-rs.git" }
+
+[dev-dependencies]
+flate2 = "1.1.9"
