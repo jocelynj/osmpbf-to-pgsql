@@ -38,7 +38,7 @@ pub struct Postgres {
 }
 
 impl Postgres {
-    pub fn new(connect: &str, schema: Option<String>, init_tables: bool, copy_dir: String) -> Self {
+    pub fn new(connect: &str, schema: Option<String>, init_tables: bool, copy_dir: &str) -> Self {
         let statements = if init_tables {
             let mut client = Client::connect(connect, NoTls).unwrap();
             if init_tables {
@@ -55,16 +55,15 @@ impl Postgres {
         } else {
             None
         };
-        let nodes = BufWriter::new(File::create(Path::new(&copy_dir).join("nodes.txt")).unwrap());
-        let ways = BufWriter::new(File::create(Path::new(&copy_dir).join("ways.txt")).unwrap());
+        let nodes = BufWriter::new(File::create(Path::new(copy_dir).join("nodes.txt")).unwrap());
+        let ways = BufWriter::new(File::create(Path::new(copy_dir).join("ways.txt")).unwrap());
         let way_nodes =
-            BufWriter::new(File::create(Path::new(&copy_dir).join("way_nodes.txt")).unwrap());
+            BufWriter::new(File::create(Path::new(copy_dir).join("way_nodes.txt")).unwrap());
         let relations =
-            BufWriter::new(File::create(Path::new(&copy_dir).join("relations.txt")).unwrap());
-        let relation_members = BufWriter::new(
-            File::create(Path::new(&copy_dir).join("relation_members.txt")).unwrap(),
-        );
-        let users = BufWriter::new(File::create(Path::new(&copy_dir).join("users.txt")).unwrap());
+            BufWriter::new(File::create(Path::new(copy_dir).join("relations.txt")).unwrap());
+        let relation_members =
+            BufWriter::new(File::create(Path::new(copy_dir).join("relation_members.txt")).unwrap());
+        let users = BufWriter::new(File::create(Path::new(copy_dir).join("users.txt")).unwrap());
         let copy = Copy {
             nodes,
             ways,

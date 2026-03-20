@@ -31,7 +31,7 @@ struct Args {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let mut db = postgres::Postgres::new(&args.psql, args.schema, args.init, args.dump);
+    let mut db = postgres::Postgres::new(&args.psql, args.schema, args.init, &args.dump);
     if args.truncate {
         db.truncate();
     }
