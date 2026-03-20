@@ -34,3 +34,12 @@ osmpbfreader = { git = "https://github.com/jocelynj/osmpbfreader-rs.git" }
 
 [dev-dependencies]
 flate2 = "1.1.9"
+
+[profile.release]
+lto = "thin"             # Enable link-time optimization
+codegen-units = 1        # Better optimization (slower compile)
+
+[profile.profiling]
+inherits = "release"
+debug = true             # Full debug info for symbols
+strip = false            # Don't strip symbols
