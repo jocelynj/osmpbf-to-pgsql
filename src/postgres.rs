@@ -3,7 +3,6 @@
 use geo_types::{Coord, Geometry, LineString, Point};
 use geozero;
 use geozero::{CoordDimensions, ToWkb};
-use itertools::Itertools;
 use osmpbfreader::objects::{Node, Relation, Tags, Way};
 use postgres::{Client, NoTls};
 use rustc_hash::FxHashMap;
@@ -163,11 +162,18 @@ impl Postgres {
         };
     }
 
-    pub fn ids_to_string(ids: &[i64]) -> String {
-        let mut s: String = "{".to_string();
-        s.push_str(&ids.iter().join(","));
-        s.push('}');
-        s
+    pub fn ids_to_vec(ids: &[i64], output: &mut Vec<u8>) {
+        write!(output, "{{").unwrap();
+        let mut iter = ids.iter();
+        // First item is special, so that we don't need to remove "," at the end
+        if let Some(id) = iter.next() {
+            itoap::write_to_vec(output, *id);
+        }
+        for id in iter {
+            write!(output, ",").unwrap();
+            itoap::write_to_vec(output, *id);
+        }
+        write!(output, "}}").unwrap();
     }
 
     pub fn escape_string(s: &str) -> String {
@@ -213,7 +219,7 @@ impl Postgres {
 
     pub fn tags_to_vec(tags: &Tags, output: &mut Vec<u8>) {
         let mut iter = tags.iter();
-        // First item is special, so that we don’t need to remove "," at the end
+        // First item is special, so that we don't need to remove "," at the end
         if let Some((k, v)) = iter.next() {
             write!(output, "\"").unwrap();
             Self::escape_key_value(k, output);
@@ -302,12 +308,12 @@ impl OsmWriter for Postgres {
             .filter_map(|&x| self.nodes.get(&x.0))
             .copied()
             .collect();
-        let nodes_str = Self::ids_to_string(&nodes);
 
         self.line_buffer.clear();
         self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, tags);
         write!(self.line_buffer, "\t").unwrap();
-        write!(self.line_buffer, "{nodes_str}\t").unwrap();
+        Self::ids_to_vec(&nodes, &mut self.line_buffer);
+        write!(self.line_buffer, "\t").unwrap();
         Self::line_to_ewkb(nodes_list, nodes.len(), &mut self.line_buffer);
         writeln!(self.line_buffer).unwrap();
 
