@@ -1,8 +1,6 @@
 //! Access postgres+postgis database
 
-use geo_types::{Coord, Geometry, LineString, Point};
-use geozero;
-use geozero::{CoordDimensions, ToWkb};
+use geo_types::Coord;
 use osmpbfreader::objects::{Node, Relation, Tags, Way};
 use postgres::{Client, NoTls};
 use rustc_hash::FxHashMap;
@@ -138,24 +136,22 @@ impl Postgres {
         Self::to_hex_string(&lon.to_le_bytes(), output);
         Self::to_hex_string(&lat.to_le_bytes(), output);
     }
+    fn linestring_to_ewkb(coords: &[Coord], output: &mut Vec<u8>) {
+        output.extend(b"0102000020E6100000"); // beginning of ewkb linestring string
+        Self::to_hex_string(&(coords.len() as u32).to_le_bytes(), output);
 
-    fn line_to_ewkb(nodes: Vec<Coord>, exp_nodes_len: usize, output: &mut Vec<u8>) {
+        for c in coords {
+            Self::to_hex_string(&c.x.to_le_bytes(), output);
+            Self::to_hex_string(&c.y.to_le_bytes(), output);
+        }
+    }
+
+    fn way_to_ewkb(nodes: Vec<Coord>, exp_nodes_len: usize, output: &mut Vec<u8>) {
         if exp_nodes_len == nodes.len() {
             match nodes.len() {
                 0 => write!(output, "\\N").unwrap(),
-                1 => {
-                    let point: Point = nodes[0].into();
-                    let point: Geometry = point.into();
-                    let point = point.to_ewkb(CoordDimensions::xy(), Some(4326)).unwrap();
-                    Self::to_hex_string(&point, output);
-                }
-                _ => {
-                    let linestring: Geometry = LineString::new(nodes).into();
-                    let linestring = linestring
-                        .to_ewkb(CoordDimensions::xy(), Some(4326))
-                        .unwrap();
-                    Self::to_hex_string(&linestring, output);
-                }
+                1 => Self::lonlat_to_ewkb(nodes[0].x, nodes[0].y, output),
+                _ => Self::linestring_to_ewkb(&nodes, output),
             }
         } else {
             write!(output, "\\N").unwrap();
@@ -315,7 +311,7 @@ impl OsmWriter for Postgres {
         write!(self.line_buffer, "\t").unwrap();
         Self::ids_to_vec(&nodes, &mut self.line_buffer);
         write!(self.line_buffer, "\t").unwrap();
-        Self::line_to_ewkb(nodes_list, nodes.len(), &mut self.line_buffer);
+        Self::way_to_ewkb(nodes_list, nodes.len(), &mut self.line_buffer);
         writeln!(self.line_buffer).unwrap();
 
         self.copy.ways.write_all(&self.line_buffer).unwrap();
