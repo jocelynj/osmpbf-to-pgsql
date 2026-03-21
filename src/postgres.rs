@@ -223,14 +223,18 @@ impl Postgres {
         changeset_id: i64,
         tags: &str,
     ) {
-        write!(self.line_buffer, "{id}\t").unwrap();
-        write!(self.line_buffer, "{version}\t").unwrap();
-        write!(self.line_buffer, "{user_id}\t").unwrap();
+        itoap::write_to_vec(&mut self.line_buffer, id);
+        write!(self.line_buffer, "\t").unwrap();
+        itoap::write_to_vec(&mut self.line_buffer, version);
+        write!(self.line_buffer, "\t").unwrap();
+        itoap::write_to_vec(&mut self.line_buffer, user_id);
+        write!(self.line_buffer, "\t").unwrap();
         timestamp
             .format_into(&mut self.line_buffer, &self.time_format)
             .unwrap();
         write!(self.line_buffer, "\t").unwrap();
-        write!(self.line_buffer, "{changeset_id}\t").unwrap();
+        itoap::write_to_vec(&mut self.line_buffer, changeset_id);
+        write!(self.line_buffer, "\t").unwrap();
         write!(self.line_buffer, "{tags}").unwrap();
     }
 }
