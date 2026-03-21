@@ -213,6 +213,26 @@ impl Postgres {
             .collect();
         strs.join(",")
     }
+
+    pub fn object_to_line_buffer(
+        &mut self,
+        id: i64,
+        version: i32,
+        user_id: i32,
+        timestamp: OffsetDateTime,
+        changeset_id: i64,
+        tags: &str,
+    ) {
+        write!(self.line_buffer, "{id}\t").unwrap();
+        write!(self.line_buffer, "{version}\t").unwrap();
+        write!(self.line_buffer, "{user_id}\t").unwrap();
+        timestamp
+            .format_into(&mut self.line_buffer, &self.time_format)
+            .unwrap();
+        write!(self.line_buffer, "\t").unwrap();
+        write!(self.line_buffer, "{changeset_id}\t").unwrap();
+        write!(self.line_buffer, "{tags}").unwrap();
+    }
 }
 
 impl OsmWriter for Postgres {
@@ -232,15 +252,8 @@ impl OsmWriter for Postgres {
         self.nodes.insert(node.id.0, coord);
 
         self.line_buffer.clear();
-        write!(self.line_buffer, "{id}\t").unwrap();
-        write!(self.line_buffer, "{version}\t").unwrap();
-        write!(self.line_buffer, "{user_id}\t").unwrap();
-        timestamp
-            .format_into(&mut self.line_buffer, &self.time_format)
-            .unwrap();
+        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, &tags);
         write!(self.line_buffer, "\t").unwrap();
-        write!(self.line_buffer, "{changeset_id}\t").unwrap();
-        write!(self.line_buffer, "{tags}\t").unwrap();
         Self::lonlat_to_ewkb(lon, lat, &mut self.line_buffer);
         writeln!(self.line_buffer).unwrap();
 
@@ -272,15 +285,8 @@ impl OsmWriter for Postgres {
         let nodes_str = Self::ids_to_string(&nodes);
 
         self.line_buffer.clear();
-        write!(self.line_buffer, "{id}\t").unwrap();
-        write!(self.line_buffer, "{version}\t").unwrap();
-        write!(self.line_buffer, "{user_id}\t").unwrap();
-        timestamp
-            .format_into(&mut self.line_buffer, &self.time_format)
-            .unwrap();
+        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, &tags);
         write!(self.line_buffer, "\t").unwrap();
-        write!(self.line_buffer, "{changeset_id}\t").unwrap();
-        write!(self.line_buffer, "{tags}\t").unwrap();
         write!(self.line_buffer, "{nodes_str}\t").unwrap();
         Self::line_to_ewkb(nodes_list, nodes.len(), &mut self.line_buffer);
         writeln!(self.line_buffer).unwrap();
@@ -308,15 +314,7 @@ impl OsmWriter for Postgres {
         let tags = Self::tags_to_string(&relation.tags);
 
         self.line_buffer.clear();
-        write!(self.line_buffer, "{id}\t").unwrap();
-        write!(self.line_buffer, "{version}\t").unwrap();
-        write!(self.line_buffer, "{user_id}\t").unwrap();
-        timestamp
-            .format_into(&mut self.line_buffer, &self.time_format)
-            .unwrap();
-        write!(self.line_buffer, "\t").unwrap();
-        write!(self.line_buffer, "{changeset_id}\t").unwrap();
-        write!(self.line_buffer, "{tags}").unwrap();
+        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, &tags);
         writeln!(self.line_buffer).unwrap();
 
         self.copy.relations.write_all(&self.line_buffer).unwrap();
