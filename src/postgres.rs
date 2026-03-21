@@ -122,13 +122,24 @@ impl Postgres {
     }
 
     pub fn to_hex_string(bytes: &[u8], output: &mut String) {
-        output.clear();
-        //        output.reserve(bytes.len() * 2);
         const HEX_CHARS: &[u8; 16] = b"0123456789ABCDEF";
         for &b in bytes {
             output.push(HEX_CHARS[(b >> 4) as usize] as char);
             output.push(HEX_CHARS[(b & 0xF) as usize] as char);
         }
+    }
+
+    fn lonlat_to_ewkb(lon: f64, lat: f64, output: &mut String) {
+        output.clear();
+        output.push_str("0101000020E6100000"); // beginning of ewkb point string
+
+        Self::to_hex_string(&lon.to_le_bytes(), output);
+        Self::to_hex_string(&lat.to_le_bytes(), output);
+    }
+
+    pub fn to_hex_new_string(bytes: &[u8], output: &mut String) {
+        output.clear();
+        Self::to_hex_string(bytes, output);
     }
 
     pub fn ids_to_string(ids: &[i64]) -> String {
@@ -201,10 +212,7 @@ impl OsmWriter for Postgres {
         let coord: Coord = (lon, lat).into();
         self.nodes.insert(node.id.0, coord);
 
-        let point: Point = (lon, lat).into();
-        let point: Geometry = point.into();
-        let point = point.to_ewkb(CoordDimensions::xy(), Some(4326)).unwrap();
-        Self::to_hex_string(&point, &mut self.hex_string_buffer);
+        Self::lonlat_to_ewkb(lon, lat, &mut self.hex_string_buffer);
 
         writeln!(
             self.copy.nodes,
@@ -264,7 +272,7 @@ impl OsmWriter for Postgres {
             }
             Some(l) => {
                 let linestring = l.to_ewkb(CoordDimensions::xy(), Some(4326)).unwrap();
-                Self::to_hex_string(&linestring, &mut self.hex_string_buffer);
+                Self::to_hex_new_string(&linestring, &mut self.hex_string_buffer);
             }
         };
 
