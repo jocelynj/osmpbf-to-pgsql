@@ -301,13 +301,14 @@ impl OsmWriter for Postgres {
         let changeset_id: i64 = info.changeset.unwrap();
         let tags = &way.tags;
 
-        let nodes: Vec<i64> = way.nodes.iter().map(|x| x.0).collect();
-        let nodes_list: Vec<Coord> = way
-            .nodes
-            .iter()
-            .filter_map(|&x| self.nodes.get(&x.0))
-            .copied()
-            .collect();
+        let mut nodes: Vec<i64> = Vec::with_capacity(way.nodes.len());
+        let mut nodes_list: Vec<Coord> = Vec::with_capacity(way.nodes.len());
+        for n in &way.nodes {
+            nodes.push(n.0);
+            if let Some(coord) = self.nodes.get(&n.0) {
+                nodes_list.push(*coord);
+            }
+        }
 
         self.line_buffer.clear();
         self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, tags);
