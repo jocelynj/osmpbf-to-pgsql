@@ -1,6 +1,5 @@
 //! Access postgres+postgis database
 
-use chrono::DateTime;
 use geo_types::{Coord, Geometry, LineString, Point};
 use geozero;
 use geozero::{CoordDimensions, ToWkb};
@@ -13,6 +12,8 @@ use std::fs::File;
 use std::io;
 use std::io::{BufWriter, Write};
 use std::path::Path;
+use time::OffsetDateTime;
+use time::macros::format_description;
 
 use crate::osm::OsmWriter;
 
@@ -37,6 +38,7 @@ pub struct Postgres {
     users: FxHashMap<i32, smartstring::alias::String>,
 
     line_buffer: Vec<u8>,
+    time_format: time::format_description::StaticFormatDescription,
 }
 
 impl Postgres {
@@ -81,6 +83,9 @@ impl Postgres {
             nodes: FxHashMap::default(),
             users: FxHashMap::default(),
             line_buffer: Vec::with_capacity(1500), // big enough to store a complex node
+            time_format: format_description!(
+                "[year]-[month]-[day] [hour]:[minute]:[second][offset_hour sign:mandatory][offset_minute]"
+            ),
         }
     }
 
@@ -216,10 +221,8 @@ impl OsmWriter for Postgres {
         let info = node.info.as_ref().unwrap();
         let version = info.version.unwrap();
         let user_id = info.uid.unwrap();
-        let timestamp = DateTime::from_timestamp(info.timestamp.unwrap(), 0)
-            .unwrap()
-            .with_timezone(&chrono::Local)
-            .format("%F %T%z");
+        let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
+        let timestamp = timestamp.to_offset(time::UtcOffset::local_offset_at(timestamp).unwrap());
         let changeset_id: i64 = info.changeset.unwrap();
         let tags = Self::tags_to_string(&node.tags);
 
@@ -232,7 +235,10 @@ impl OsmWriter for Postgres {
         write!(self.line_buffer, "{id}\t").unwrap();
         write!(self.line_buffer, "{version}\t").unwrap();
         write!(self.line_buffer, "{user_id}\t").unwrap();
-        write!(self.line_buffer, "{timestamp}\t").unwrap();
+        timestamp
+            .format_into(&mut self.line_buffer, &self.time_format)
+            .unwrap();
+        write!(self.line_buffer, "\t").unwrap();
         write!(self.line_buffer, "{changeset_id}\t").unwrap();
         write!(self.line_buffer, "{tags}\t").unwrap();
         Self::lonlat_to_ewkb(lon, lat, &mut self.line_buffer);
@@ -251,10 +257,8 @@ impl OsmWriter for Postgres {
         let info = way.info.as_ref().unwrap();
         let version = info.version.unwrap();
         let user_id = info.uid.unwrap();
-        let timestamp = DateTime::from_timestamp(info.timestamp.unwrap(), 0)
-            .unwrap()
-            .with_timezone(&chrono::Local)
-            .format("%F %T%z");
+        let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
+        let timestamp = timestamp.to_offset(time::UtcOffset::local_offset_at(timestamp).unwrap());
         let changeset_id: i64 = info.changeset.unwrap();
         let tags = Self::tags_to_string(&way.tags);
 
@@ -271,7 +275,10 @@ impl OsmWriter for Postgres {
         write!(self.line_buffer, "{id}\t").unwrap();
         write!(self.line_buffer, "{version}\t").unwrap();
         write!(self.line_buffer, "{user_id}\t").unwrap();
-        write!(self.line_buffer, "{timestamp}\t").unwrap();
+        timestamp
+            .format_into(&mut self.line_buffer, &self.time_format)
+            .unwrap();
+        write!(self.line_buffer, "\t").unwrap();
         write!(self.line_buffer, "{changeset_id}\t").unwrap();
         write!(self.line_buffer, "{tags}\t").unwrap();
         write!(self.line_buffer, "{nodes_str}\t").unwrap();
@@ -295,10 +302,8 @@ impl OsmWriter for Postgres {
         let info = relation.info.as_ref().unwrap();
         let version = info.version.unwrap();
         let user_id = info.uid.unwrap();
-        let timestamp = DateTime::from_timestamp(info.timestamp.unwrap(), 0)
-            .unwrap()
-            .with_timezone(&chrono::Local)
-            .format("%F %T%z");
+        let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
+        let timestamp = timestamp.to_offset(time::UtcOffset::local_offset_at(timestamp).unwrap());
         let changeset_id: i64 = info.changeset.unwrap();
         let tags = Self::tags_to_string(&relation.tags);
 
@@ -306,7 +311,10 @@ impl OsmWriter for Postgres {
         write!(self.line_buffer, "{id}\t").unwrap();
         write!(self.line_buffer, "{version}\t").unwrap();
         write!(self.line_buffer, "{user_id}\t").unwrap();
-        write!(self.line_buffer, "{timestamp}\t").unwrap();
+        timestamp
+            .format_into(&mut self.line_buffer, &self.time_format)
+            .unwrap();
+        write!(self.line_buffer, "\t").unwrap();
         write!(self.line_buffer, "{changeset_id}\t").unwrap();
         write!(self.line_buffer, "{tags}").unwrap();
         writeln!(self.line_buffer).unwrap();

@@ -1,10 +1,10 @@
 //! Reader for OpenStreetMap pbf files
 
-use chrono;
 use osmpbfreader;
 use std::error::Error;
 use std::fs::File;
 use std::path::Path;
+use time::macros::format_description;
 
 use crate::osm::{OsmCopyTo, OsmWriter};
 
@@ -24,7 +24,13 @@ impl OsmPbf {
 
 macro_rules! printlnt {
     ($($arg:tt)*) => {
-        println!("{} {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"), format_args!($($arg)*));
+        println!("{} {}",
+                 time::OffsetDateTime::now_local()
+                    .unwrap_or_else(|_| time::OffsetDateTime::now_utc())
+                    .format(&format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"))
+                    .unwrap(),
+                 format_args!($($arg)*)
+                );
     };
 }
 
