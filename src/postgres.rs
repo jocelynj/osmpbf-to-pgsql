@@ -184,34 +184,50 @@ impl Postgres {
         out
     }
 
-    pub fn escape_key_value(s: &str) -> String {
+    pub fn escape_key_value(s: &str, output: &mut Vec<u8>) {
         // Differs from escape_string() as " is escaped with 2 slashes instead of 0.
-        let mut out = String::with_capacity(s.len());
         for c in s.chars() {
             match c {
-                '\\' => out.push_str("\\\\"),
-                '\n' => out.push_str("\\n"),
-                '\r' => out.push_str("\\r"),
-                '\t' => out.push_str("\\t"),
-                '"' => out.push_str("\\\\\""),
-                _ => out.push(c),
+                '\\' => output.extend(b"\\\\"),
+                '\n' => output.extend(b"\\n"),
+                '\r' => output.extend(b"\\r"),
+                '\t' => output.extend(b"\\t"),
+                '"' => output.extend(b"\\\\\""),
+                _ => {
+                    let pos = output.len();
+                    let len = c.len_utf8();
+                    output.reserve(len);
+                    let spare = output.spare_capacity_mut();
+                    // We are initialising this data just below, with encode_utf8()
+                    let spare = unsafe {
+                        std::mem::transmute::<&mut [std::mem::MaybeUninit<u8>], &mut [u8]>(spare)
+                    };
+                    c.encode_utf8(&mut spare[..len]);
+                    unsafe {
+                        output.set_len(pos + len);
+                    }
+                }
             }
         }
-        out
     }
 
-    pub fn tags_to_string(tags: &Tags) -> String {
-        let strs: Vec<String> = tags
-            .iter()
-            .map(|(k, v)| {
-                format!(
-                    "\"{}\"=>\"{}\"",
-                    Self::escape_key_value(k),
-                    Self::escape_key_value(v)
-                )
-            })
-            .collect();
-        strs.join(",")
+    pub fn tags_to_vec(tags: &Tags, output: &mut Vec<u8>) {
+        let mut iter = tags.iter();
+        // First item is special, so that we don’t need to remove "," at the end
+        if let Some((k, v)) = iter.next() {
+            write!(output, "\"").unwrap();
+            Self::escape_key_value(k, output);
+            write!(output, "\"=>\"").unwrap();
+            Self::escape_key_value(v, output);
+            write!(output, "\"").unwrap();
+        }
+        for (k, v) in iter {
+            write!(output, ",\"").unwrap();
+            Self::escape_key_value(k, output);
+            write!(output, "\"=>\"").unwrap();
+            Self::escape_key_value(v, output);
+            write!(output, "\"").unwrap();
+        }
     }
 
     pub fn object_to_line_buffer(
@@ -221,7 +237,7 @@ impl Postgres {
         user_id: i32,
         timestamp: OffsetDateTime,
         changeset_id: i64,
-        tags: &str,
+        tags: &Tags,
     ) {
         itoap::write_to_vec(&mut self.line_buffer, id);
         write!(self.line_buffer, "\t").unwrap();
@@ -235,7 +251,7 @@ impl Postgres {
         write!(self.line_buffer, "\t").unwrap();
         itoap::write_to_vec(&mut self.line_buffer, changeset_id);
         write!(self.line_buffer, "\t").unwrap();
-        write!(self.line_buffer, "{tags}").unwrap();
+        Self::tags_to_vec(tags, &mut self.line_buffer);
     }
 }
 
@@ -248,7 +264,7 @@ impl OsmWriter for Postgres {
         let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
         let timestamp = timestamp.to_offset(time::UtcOffset::local_offset_at(timestamp).unwrap());
         let changeset_id: i64 = info.changeset.unwrap();
-        let tags = Self::tags_to_string(&node.tags);
+        let tags = &node.tags;
 
         let lon = node.lon();
         let lat = node.lat();
@@ -256,7 +272,7 @@ impl OsmWriter for Postgres {
         self.nodes.insert(node.id.0, coord);
 
         self.line_buffer.clear();
-        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, &tags);
+        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, tags);
         write!(self.line_buffer, "\t").unwrap();
         Self::lonlat_to_ewkb(lon, lat, &mut self.line_buffer);
         writeln!(self.line_buffer).unwrap();
@@ -277,7 +293,7 @@ impl OsmWriter for Postgres {
         let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
         let timestamp = timestamp.to_offset(time::UtcOffset::local_offset_at(timestamp).unwrap());
         let changeset_id: i64 = info.changeset.unwrap();
-        let tags = Self::tags_to_string(&way.tags);
+        let tags = &way.tags;
 
         let nodes: Vec<i64> = way.nodes.iter().map(|x| x.0).collect();
         let nodes_list: Vec<Coord> = way
@@ -289,7 +305,7 @@ impl OsmWriter for Postgres {
         let nodes_str = Self::ids_to_string(&nodes);
 
         self.line_buffer.clear();
-        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, &tags);
+        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, tags);
         write!(self.line_buffer, "\t").unwrap();
         write!(self.line_buffer, "{nodes_str}\t").unwrap();
         Self::line_to_ewkb(nodes_list, nodes.len(), &mut self.line_buffer);
@@ -315,10 +331,10 @@ impl OsmWriter for Postgres {
         let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
         let timestamp = timestamp.to_offset(time::UtcOffset::local_offset_at(timestamp).unwrap());
         let changeset_id: i64 = info.changeset.unwrap();
-        let tags = Self::tags_to_string(&relation.tags);
+        let tags = &relation.tags;
 
         self.line_buffer.clear();
-        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, &tags);
+        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, tags);
         writeln!(self.line_buffer).unwrap();
 
         self.copy.relations.write_all(&self.line_buffer).unwrap();
