@@ -9,7 +9,6 @@ use osmpbfreader::objects::{Node, Relation, Tags, Way};
 use postgres::{Client, NoTls};
 use rustc_hash::FxHashMap;
 use std::error::Error;
-use std::fmt::Write as fmtWrite;
 use std::fs::File;
 use std::io;
 use std::io::{BufWriter, Write};
@@ -37,7 +36,7 @@ pub struct Postgres {
     nodes: FxHashMap<i64, Coord>,
     users: FxHashMap<i32, smartstring::alias::String>,
 
-    hex_string_buffer: String,
+    line_buffer: Vec<u8>,
 }
 
 impl Postgres {
@@ -81,7 +80,7 @@ impl Postgres {
             statements,
             nodes: FxHashMap::default(),
             users: FxHashMap::default(),
-            hex_string_buffer: String::with_capacity(60),
+            line_buffer: Vec::with_capacity(1500), // big enough to store a complex node
         }
     }
 
@@ -121,25 +120,42 @@ impl Postgres {
             .unwrap();
     }
 
-    pub fn to_hex_string(bytes: &[u8], output: &mut String) {
+    pub fn to_hex_string(bytes: &[u8], output: &mut Vec<u8>) {
         const HEX_CHARS: &[u8; 16] = b"0123456789ABCDEF";
         for &b in bytes {
-            output.push(HEX_CHARS[(b >> 4) as usize] as char);
-            output.push(HEX_CHARS[(b & 0xF) as usize] as char);
+            output.push(HEX_CHARS[(b >> 4) as usize]);
+            output.push(HEX_CHARS[(b & 0xF) as usize]);
         }
     }
 
-    fn lonlat_to_ewkb(lon: f64, lat: f64, output: &mut String) {
-        output.clear();
-        output.push_str("0101000020E6100000"); // beginning of ewkb point string
+    fn lonlat_to_ewkb(lon: f64, lat: f64, output: &mut Vec<u8>) {
+        output.extend(b"0101000020E6100000"); // beginning of ewkb point string
 
         Self::to_hex_string(&lon.to_le_bytes(), output);
         Self::to_hex_string(&lat.to_le_bytes(), output);
     }
 
-    pub fn to_hex_new_string(bytes: &[u8], output: &mut String) {
-        output.clear();
-        Self::to_hex_string(bytes, output);
+    fn line_to_ewkb(nodes: Vec<Coord>, exp_nodes_len: usize, output: &mut Vec<u8>) {
+        if exp_nodes_len == nodes.len() {
+            match nodes.len() {
+                0 => write!(output, "\\N").unwrap(),
+                1 => {
+                    let point: Point = nodes[0].into();
+                    let point: Geometry = point.into();
+                    let point = point.to_ewkb(CoordDimensions::xy(), Some(4326)).unwrap();
+                    Self::to_hex_string(&point, output);
+                }
+                _ => {
+                    let linestring: Geometry = LineString::new(nodes).into();
+                    let linestring = linestring
+                        .to_ewkb(CoordDimensions::xy(), Some(4326))
+                        .unwrap();
+                    Self::to_hex_string(&linestring, output);
+                }
+            }
+        } else {
+            write!(output, "\\N").unwrap();
+        };
     }
 
     pub fn ids_to_string(ids: &[i64]) -> String {
@@ -212,14 +228,17 @@ impl OsmWriter for Postgres {
         let coord: Coord = (lon, lat).into();
         self.nodes.insert(node.id.0, coord);
 
-        Self::lonlat_to_ewkb(lon, lat, &mut self.hex_string_buffer);
+        self.line_buffer.clear();
+        write!(self.line_buffer, "{id}\t").unwrap();
+        write!(self.line_buffer, "{version}\t").unwrap();
+        write!(self.line_buffer, "{user_id}\t").unwrap();
+        write!(self.line_buffer, "{timestamp}\t").unwrap();
+        write!(self.line_buffer, "{changeset_id}\t").unwrap();
+        write!(self.line_buffer, "{tags}\t").unwrap();
+        Self::lonlat_to_ewkb(lon, lat, &mut self.line_buffer);
+        writeln!(self.line_buffer).unwrap();
 
-        writeln!(
-            self.copy.nodes,
-            "{id}\t{version}\t{user_id}\t{timestamp}\t{changeset_id}\t{tags}\t{}",
-            self.hex_string_buffer,
-        )
-        .unwrap();
+        self.copy.nodes.write_all(&self.line_buffer).unwrap();
 
         self.users
             .entry(user_id)
@@ -246,42 +265,21 @@ impl OsmWriter for Postgres {
             .filter_map(|&x| self.nodes.get(&x.0))
             .copied()
             .collect();
-        let linestring = if nodes.len() == nodes_list.len() {
-            match nodes_list.len() {
-                0 => None,
-                1 => {
-                    let point: Point = nodes_list[0].into();
-                    let point: Geometry = point.into();
-                    Some(point)
-                }
-                _ => {
-                    let linestring: Geometry = LineString::new(nodes_list).into();
-                    Some(linestring)
-                }
-            }
-        } else {
-            None
-        };
-
         let nodes_str = Self::ids_to_string(&nodes);
 
-        match linestring {
-            None => {
-                self.hex_string_buffer.clear();
-                write!(self.hex_string_buffer, "\\N").unwrap();
-            }
-            Some(l) => {
-                let linestring = l.to_ewkb(CoordDimensions::xy(), Some(4326)).unwrap();
-                Self::to_hex_new_string(&linestring, &mut self.hex_string_buffer);
-            }
-        };
+        self.line_buffer.clear();
+        write!(self.line_buffer, "{id}\t").unwrap();
+        write!(self.line_buffer, "{version}\t").unwrap();
+        write!(self.line_buffer, "{user_id}\t").unwrap();
+        write!(self.line_buffer, "{timestamp}\t").unwrap();
+        write!(self.line_buffer, "{changeset_id}\t").unwrap();
+        write!(self.line_buffer, "{tags}\t").unwrap();
+        write!(self.line_buffer, "{nodes_str}\t").unwrap();
+        Self::line_to_ewkb(nodes_list, nodes.len(), &mut self.line_buffer);
+        writeln!(self.line_buffer).unwrap();
 
-        writeln!(
-            self.copy.ways,
-            "{id}\t{version}\t{user_id}\t{timestamp}\t{changeset_id}\t{tags}\t{nodes_str}\t{}",
-            self.hex_string_buffer
-        )
-        .unwrap();
+        self.copy.ways.write_all(&self.line_buffer).unwrap();
+
         for (i, node) in nodes.iter().enumerate() {
             writeln!(self.copy.way_nodes, "{id}\t{node}\t{i}").unwrap();
         }
@@ -304,11 +302,17 @@ impl OsmWriter for Postgres {
         let changeset_id: i64 = info.changeset.unwrap();
         let tags = Self::tags_to_string(&relation.tags);
 
-        writeln!(
-            self.copy.relations,
-            "{id}\t{version}\t{user_id}\t{timestamp}\t{changeset_id}\t{tags}"
-        )
-        .unwrap();
+        self.line_buffer.clear();
+        write!(self.line_buffer, "{id}\t").unwrap();
+        write!(self.line_buffer, "{version}\t").unwrap();
+        write!(self.line_buffer, "{user_id}\t").unwrap();
+        write!(self.line_buffer, "{timestamp}\t").unwrap();
+        write!(self.line_buffer, "{changeset_id}\t").unwrap();
+        write!(self.line_buffer, "{tags}").unwrap();
+        writeln!(self.line_buffer).unwrap();
+
+        self.copy.relations.write_all(&self.line_buffer).unwrap();
+
         for (i, elem) in relation.refs.iter().enumerate() {
             let (member_id, member_type) = match elem.member {
                 osmpbfreader::OsmId::Node(id) => (id.0, "N"),
