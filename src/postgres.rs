@@ -316,9 +316,16 @@ impl OsmWriter for Postgres {
 
         self.copy.ways.write_all(&self.line_buffer).unwrap();
 
+        self.line_buffer.clear();
         for (i, node) in nodes.iter().enumerate() {
-            writeln!(self.copy.way_nodes, "{id}\t{node}\t{i}").unwrap();
+            itoap::write_to_vec(&mut self.line_buffer, id);
+            write!(self.line_buffer, "\t").unwrap();
+            itoap::write_to_vec(&mut self.line_buffer, *node);
+            write!(self.line_buffer, "\t").unwrap();
+            itoap::write_to_vec(&mut self.line_buffer, i);
+            writeln!(self.line_buffer).unwrap();
         }
+        self.copy.way_nodes.write_all(&self.line_buffer).unwrap();
 
         self.users
             .entry(user_id)
