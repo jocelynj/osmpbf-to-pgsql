@@ -1,9 +1,13 @@
+use flate2::Compression;
 use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
 use osmpbf_to_pgsql::osm::OsmWriter;
 use osmpbf_to_pgsql::postgres;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::Read;
+use std::io::Write;
+use tempfile::NamedTempFile;
 
 const PBF: &str = "tests/clipperton.osm.pbf";
 const DUMP_ORIG: &str = "tests/clipperton-dump/";
@@ -81,4 +85,114 @@ fn pbf_to_pgdump() {
         let gen_file = dumpdir.to_string() + "/" + *f;
         assert!(compare_files(&orig_file, &gen_file));
     }
+}
+
+// Tests for compare_files()
+
+#[test]
+fn test_identical_files() {
+    // Create two identical files
+    let mut file1 = NamedTempFile::new().unwrap();
+    let mut file2 = NamedTempFile::new().unwrap();
+
+    writeln!(file1, "Hello, world!").unwrap();
+    writeln!(file2, "Hello, world!").unwrap();
+
+    let path1 = file1.path().to_str().unwrap();
+    let path2 = file2.path().to_str().unwrap();
+
+    assert!(compare_files(path1, path2));
+}
+
+#[test]
+fn test_different_files() {
+    // Create two different files
+    let mut file1 = NamedTempFile::new().unwrap();
+    let mut file2 = NamedTempFile::new().unwrap();
+
+    writeln!(file1, "Hello, world!").unwrap();
+    writeln!(file2, "Goodbye, world!").unwrap();
+
+    let path1 = file1.path().to_str().unwrap();
+    let path2 = file2.path().to_str().unwrap();
+
+    assert!(!compare_files(path1, path2));
+}
+
+#[test]
+fn test_different_lengths() {
+    // Create two files of different lengths
+    let mut file1 = NamedTempFile::new().unwrap();
+    let mut file2 = NamedTempFile::new().unwrap();
+
+    writeln!(file1, "Hello, world!").unwrap();
+    writeln!(file2, "Hello, world!\nExtra line").unwrap();
+
+    let path1 = file1.path().to_str().unwrap();
+    let path2 = file2.path().to_str().unwrap();
+
+    assert!(!compare_files(path1, path2));
+}
+
+#[test]
+fn test_identical_gz_files() {
+    // Create two identical gzipped files
+    let file1 = NamedTempFile::new().unwrap();
+    let file2 = NamedTempFile::new().unwrap();
+
+    let mut gz_file1 = GzEncoder::new(File::create(file1.path()).unwrap(), Compression::default());
+    let mut gz_file2 = GzEncoder::new(File::create(file2.path()).unwrap(), Compression::default());
+
+    writeln!(gz_file1, "Hello, world!").unwrap();
+    writeln!(gz_file2, "Hello, world!").unwrap();
+
+    gz_file1.finish().unwrap();
+    gz_file2.finish().unwrap();
+
+    let path1 = file1.path().to_str().unwrap();
+    let path2 = file2.path().to_str().unwrap();
+
+    assert!(compare_files(path1, path2));
+}
+
+#[test]
+fn test_different_gz_files() {
+    // Create two different gzipped files
+    let file1 = NamedTempFile::new().unwrap();
+    let file2 = NamedTempFile::new().unwrap();
+
+    let mut gz_file1 = GzEncoder::new(File::create(file1.path()).unwrap(), Compression::default());
+    let mut gz_file2 = GzEncoder::new(File::create(file2.path()).unwrap(), Compression::default());
+
+    writeln!(gz_file1, "Hello, world!").unwrap();
+    writeln!(gz_file2, "Goodbye, world!").unwrap();
+
+    gz_file1.finish().unwrap();
+    gz_file2.finish().unwrap();
+
+    let path1 = file1.path().to_str().unwrap();
+    let path2 = file2.path().to_str().unwrap();
+
+    assert!(!compare_files(path1, path2));
+}
+
+#[test]
+fn test_mixed_gz_and_plain() {
+    // Create one plain file and one gzipped file with the same content
+    let mut plain_file = NamedTempFile::new().unwrap();
+    let gz_file = NamedTempFile::with_suffix(".gz").unwrap();
+
+    writeln!(plain_file, "Hello, world!").unwrap();
+
+    let mut gz_encoder = GzEncoder::new(
+        File::create(gz_file.path()).unwrap(),
+        Compression::default(),
+    );
+    writeln!(gz_encoder, "Hello, world!").unwrap();
+    gz_encoder.finish().unwrap();
+
+    let plain_path = plain_file.path().to_str().unwrap();
+    let gz_path = gz_file.path().to_str().unwrap();
+
+    assert!(compare_files(plain_path, gz_path));
 }
