@@ -5,11 +5,20 @@ edition = "2024"
 description = "Dump an OpenStreetMap PBF file to Osmosis pg-snashot format"
 license = "MIT"
 
+[features]
+enable-compare-pgsql-dump = ["dep:float-cmp", "dep:hex"]
+
+[[bin]]
+name = "compare-pgsql-dump"
+required-features = ["enable-compare-pgsql-dump"]
+
 [dependencies]
 anstyle = "1.0.14"
 clap = { version = "4.6.0", features = ["derive"] }
+float-cmp = { version = "0.10.0", optional = true }
 geo-types = "0.7.18"
 geozero = { version = "0.14.0", features = ["with-postgis-postgres"] }
+hex = { version = "0.4.3", optional = true }
 itoap = "1.0.1"
 osmpbfreader = { version = "0.19.1", features = ["full-metadata"] }
 #osmpbfreader = { version = "0.19.0" }
