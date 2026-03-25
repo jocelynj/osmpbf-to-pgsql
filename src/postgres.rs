@@ -77,8 +77,8 @@ impl Postgres {
         Self {
             copy,
             statements,
-            nodes: FxHashMap::default(),
-            users: FxHashMap::default(),
+            nodes: FxHashMap::with_capacity_and_hasher(500000, Default::default()),
+            users: FxHashMap::with_capacity_and_hasher(5000, Default::default()),
             line_buffer: Vec::with_capacity(1500), // big enough to store a complex node
             time_format: format_description!(
                 "[year]-[month]-[day] [hour]:[minute]:[second][offset_hour sign:mandatory][offset_minute]"
