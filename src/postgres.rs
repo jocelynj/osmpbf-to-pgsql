@@ -146,16 +146,11 @@ impl Postgres {
         }
     }
 
-    fn way_to_ewkb(nodes: Vec<Coord>, exp_nodes_len: usize, output: &mut Vec<u8>) {
-        if exp_nodes_len == nodes.len() {
-            match nodes.len() {
-                0 => write!(output, "\\N").unwrap(),
-                1 => Self::lonlat_to_ewkb(nodes[0].x, nodes[0].y, output),
-                _ => Self::linestring_to_ewkb(&nodes, output),
-            }
-        } else {
-            write!(output, "\\N").unwrap();
-        };
+    fn way_to_ewkb(nodes: Vec<Coord>, output: &mut Vec<u8>) {
+        match nodes.len() {
+            0 => write!(output, "\\N").unwrap(),
+            _ => Self::linestring_to_ewkb(&nodes, output),
+        }
     }
 
     pub fn ids_to_vec(ids: &[i64], output: &mut Vec<u8>) {
@@ -303,13 +298,18 @@ impl OsmWriter for Postgres {
                 nodes_list.push(*coord);
             }
         }
+        if (nodes.first() == nodes.last()) && (nodes_list.first() != nodes_list.last()) {
+            // Close an originally closed way, but where the first node is missing from extract
+            eprintln!("Closing way {}", id);
+            nodes_list.push(*nodes_list.first().unwrap())
+        }
 
         self.line_buffer.clear();
         self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, tags);
         write!(self.line_buffer, "\t").unwrap();
         Self::ids_to_vec(&nodes, &mut self.line_buffer);
         write!(self.line_buffer, "\t").unwrap();
-        Self::way_to_ewkb(nodes_list, nodes.len(), &mut self.line_buffer);
+        Self::way_to_ewkb(nodes_list, &mut self.line_buffer);
         writeln!(self.line_buffer).unwrap();
 
         self.copy.ways.write_all(&self.line_buffer).unwrap();
