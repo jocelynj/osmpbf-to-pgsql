@@ -22,9 +22,9 @@ impl OsmPbf {
     }
 }
 
-macro_rules! printlnt {
+macro_rules! eprintlnt {
     ($($arg:tt)*) => {
-        println!("{} {}",
+        eprintln!("{} {}",
                  time::OffsetDateTime::now_local()
                     .unwrap_or_else(|_| time::OffsetDateTime::now_utc())
                     .format(&format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"))
@@ -57,7 +57,7 @@ where
         let mut start_way = false;
         let mut start_relation = false;
 
-        printlnt!("Starting pbf read");
+        eprintlnt!("Starting pbf read");
 
         for obj in pbf.par_iter() {
             let obj = obj?;
@@ -67,21 +67,21 @@ where
                 }
                 osmpbfreader::OsmObj::Way(way) => {
                     if !start_way {
-                        printlnt!("Starting ways");
+                        eprintlnt!("Starting ways");
                         start_way = true;
                     }
                     target.write_way(&way).unwrap();
                 }
                 osmpbfreader::OsmObj::Relation(relation) => {
                     if !start_relation {
-                        printlnt!("Starting relations");
+                        eprintlnt!("Starting relations");
                         start_relation = true;
                     }
                     target.write_relation(&relation).unwrap();
                 }
             }
         }
-        printlnt!("Finished pbf read");
+        eprintlnt!("Finished pbf read");
 
         target.write_end(false).unwrap();
 
