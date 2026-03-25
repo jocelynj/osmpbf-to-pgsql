@@ -264,7 +264,6 @@ impl OsmWriter for Postgres {
         let version = info.version.unwrap();
         let user_id = info.uid.unwrap();
         let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
-        let timestamp = timestamp.to_offset(time::UtcOffset::local_offset_at(timestamp).unwrap());
         let changeset_id: i64 = info.changeset.unwrap();
         let tags = &node.tags;
 
@@ -293,7 +292,6 @@ impl OsmWriter for Postgres {
         let version = info.version.unwrap();
         let user_id = info.uid.unwrap();
         let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
-        let timestamp = timestamp.to_offset(time::UtcOffset::local_offset_at(timestamp).unwrap());
         let changeset_id: i64 = info.changeset.unwrap();
         let tags = &way.tags;
 
@@ -339,7 +337,6 @@ impl OsmWriter for Postgres {
         let version = info.version.unwrap();
         let user_id = info.uid.unwrap();
         let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
-        let timestamp = timestamp.to_offset(time::UtcOffset::local_offset_at(timestamp).unwrap());
         let changeset_id: i64 = info.changeset.unwrap();
         let tags = &relation.tags;
 
