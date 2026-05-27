@@ -1,6 +1,6 @@
 //! Basic handling of OpenStreetMap data
 
-use osmpbfreader::objects::{Node, Relation, Way};
+use osmpbfreader::objects::{Info, Node, Relation, Way};
 use std::error::Error;
 use std::fmt;
 use std::io;
@@ -36,9 +36,9 @@ pub trait OsmReader {
 
 /// Writer writing a new node/way/relation
 pub trait OsmWriter {
-    fn write_node(&mut self, node: &Node) -> Result<(), io::Error>;
-    fn write_way(&mut self, way: &Way) -> Result<(), io::Error>;
-    fn write_relation(&mut self, relation: &Relation) -> Result<(), io::Error>;
+    fn write_node(&mut self, node: &Node, info: &Info) -> Result<(), io::Error>;
+    fn write_way(&mut self, way: &Way, info: &Info) -> Result<(), io::Error>;
+    fn write_relation(&mut self, relation: &Relation, info: &Info) -> Result<(), io::Error>;
 
     fn write_start(&mut self, _change: bool) -> Result<(), Box<dyn Error>> {
         Ok(())

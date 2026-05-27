@@ -1,7 +1,7 @@
 //! Access postgres+postgis database
 
 use geo_types::Coord;
-use osmpbfreader::objects::{Node, Relation, Tags, Way};
+use osmpbfreader::objects::{Info, Node, Relation, Tags, Way};
 use postgres::{Client, NoTls};
 use rustc_hash::FxHashMap;
 use std::error::Error;
@@ -227,15 +227,13 @@ impl Postgres {
         }
     }
 
-    pub fn object_to_line_buffer(
-        &mut self,
-        id: i64,
-        version: i32,
-        user_id: i32,
-        timestamp: OffsetDateTime,
-        changeset_id: i64,
-        tags: &Tags,
-    ) {
+    pub fn object_to_line_buffer(&mut self, id: i64, info: &Info, tags: &Tags) {
+        let version: i32 = info.version.map(|n| n.get()).unwrap_or(0);
+        let user_id: i32 = info.uid.map(|n| n.get()).unwrap_or(0);
+        let timestamp: i64 = info.timestamp.map(|n| n.get()).unwrap_or(0);
+        let timestamp = OffsetDateTime::from_unix_timestamp(timestamp).unwrap();
+        let changeset_id: i64 = info.changeset.map(|n| n.get()).unwrap_or(0);
+
         itoap::write_to_vec(&mut self.line_buffer, id);
         write!(self.line_buffer, "\t").unwrap();
         itoap::write_to_vec(&mut self.line_buffer, version);
@@ -253,13 +251,9 @@ impl Postgres {
 }
 
 impl OsmWriter for Postgres {
-    fn write_node(&mut self, node: &Node) -> Result<(), io::Error> {
+    fn write_node(&mut self, node: &Node, info: &Info) -> Result<(), io::Error> {
         let id = node.id.0;
-        let info = node.info.as_ref().unwrap();
-        let version = info.version.unwrap();
-        let user_id = info.uid.unwrap();
-        let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
-        let changeset_id: i64 = info.changeset.unwrap();
+        let user_id: i32 = info.uid.map(|n| n.get()).unwrap_or(0);
         let tags = &node.tags;
 
         let lon = node.lon();
@@ -268,7 +262,7 @@ impl OsmWriter for Postgres {
         self.nodes.insert(node.id.0, coord);
 
         self.line_buffer.clear();
-        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, tags);
+        self.object_to_line_buffer(id, info, tags);
         write!(self.line_buffer, "\t").unwrap();
         Self::lonlat_to_ewkb(lon, lat, &mut self.line_buffer);
         writeln!(self.line_buffer).unwrap();
@@ -281,13 +275,9 @@ impl OsmWriter for Postgres {
 
         Ok(())
     }
-    fn write_way(&mut self, way: &Way) -> Result<(), io::Error> {
+    fn write_way(&mut self, way: &Way, info: &Info) -> Result<(), io::Error> {
         let id = way.id.0;
-        let info = way.info.as_ref().unwrap();
-        let version = info.version.unwrap();
-        let user_id = info.uid.unwrap();
-        let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
-        let changeset_id: i64 = info.changeset.unwrap();
+        let user_id: i32 = info.uid.map(|n| n.get()).unwrap_or(0);
         let tags = &way.tags;
 
         let mut nodes: Vec<i64> = Vec::with_capacity(way.nodes.len());
@@ -305,7 +295,7 @@ impl OsmWriter for Postgres {
         }
 
         self.line_buffer.clear();
-        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, tags);
+        self.object_to_line_buffer(id, info, tags);
         write!(self.line_buffer, "\t").unwrap();
         Self::ids_to_vec(&nodes, &mut self.line_buffer);
         write!(self.line_buffer, "\t").unwrap();
@@ -331,17 +321,13 @@ impl OsmWriter for Postgres {
 
         Ok(())
     }
-    fn write_relation(&mut self, relation: &Relation) -> Result<(), io::Error> {
+    fn write_relation(&mut self, relation: &Relation, info: &Info) -> Result<(), io::Error> {
         let id = relation.id.0;
-        let info = relation.info.as_ref().unwrap();
-        let version = info.version.unwrap();
-        let user_id = info.uid.unwrap();
-        let timestamp = OffsetDateTime::from_unix_timestamp(info.timestamp.unwrap()).unwrap();
-        let changeset_id: i64 = info.changeset.unwrap();
+        let user_id: i32 = info.uid.map(|n| n.get()).unwrap_or(0);
         let tags = &relation.tags;
 
         self.line_buffer.clear();
-        self.object_to_line_buffer(id, version, user_id, timestamp, changeset_id, tags);
+        self.object_to_line_buffer(id, info, tags);
         writeln!(self.line_buffer).unwrap();
 
         self.copy.relations.write_all(&self.line_buffer).unwrap();

@@ -59,25 +59,25 @@ where
 
         eprintlnt!("Starting pbf read");
 
-        for obj in pbf.par_iter() {
+        for obj in pbf.par_iter_with_info() {
             let obj = obj?;
-            match obj {
+            match obj.obj {
                 osmpbfreader::OsmObj::Node(node) => {
-                    target.write_node(&node).unwrap();
+                    target.write_node(&node, &obj.info).unwrap();
                 }
                 osmpbfreader::OsmObj::Way(way) => {
                     if !start_way {
                         eprintlnt!("Starting ways");
                         start_way = true;
                     }
-                    target.write_way(&way).unwrap();
+                    target.write_way(&way, &obj.info).unwrap();
                 }
                 osmpbfreader::OsmObj::Relation(relation) => {
                     if !start_relation {
                         eprintlnt!("Starting relations");
                         start_relation = true;
                     }
-                    target.write_relation(&relation).unwrap();
+                    target.write_relation(&relation, &obj.info).unwrap();
                 }
             }
         }
