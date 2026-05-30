@@ -185,7 +185,7 @@ impl Postgres {
         // Differs from escape_string() as " is escaped with 2 slashes instead of 0.
         for c in s.chars() {
             match c {
-                '\\' => output.extend(b"\\\\"),
+                '\\' => output.extend(b"\\\\\\\\"),
                 '\n' => output.extend(b"\\n"),
                 '\r' => output.extend(b"\\r"),
                 '\t' => output.extend(b"\\t"),
