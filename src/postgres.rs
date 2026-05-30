@@ -360,3 +360,42 @@ impl OsmWriter for Postgres {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn escape_string() {
+        assert_eq!(Postgres::escape_string("test"), "test");
+        assert_eq!(Postgres::escape_string("a\\b"), "a\\\\b");
+        assert_eq!(Postgres::escape_string("a\\\\b\\"), "a\\\\\\\\b\\\\");
+        assert_eq!(Postgres::escape_string("a\nb"), "a\\nb");
+        assert_eq!(Postgres::escape_string("a\rb"), "a\\rb");
+        assert_eq!(Postgres::escape_string("a\tb"), "a\\tb");
+    }
+
+    fn test_escape_key_value(s: &str) -> String {
+        let mut out = Vec::with_capacity(s.len());
+        Postgres::escape_key_value(&s, &mut out);
+        String::from_utf8(out).unwrap()
+    }
+
+    #[test]
+    fn escape_key_value() {
+        assert_eq!(test_escape_key_value("test"), "test");
+        assert_eq!(test_escape_key_value("a\\b"), "a\\\\\\\\b");
+        assert_eq!(
+            test_escape_key_value("a\\\\b\\"),
+            "a\\\\\\\\\\\\\\\\b\\\\\\\\"
+        );
+        assert_eq!(test_escape_key_value("a\nb"), "a\\nb");
+        assert_eq!(test_escape_key_value("a\rb"), "a\\rb");
+        assert_eq!(test_escape_key_value("a\tb"), "a\\tb");
+
+        assert_eq!(
+            test_escape_key_value("piso_intertravado\\\\\\\\\\\\\\"),
+            "piso_intertravado\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"
+        );
+    }
+}
