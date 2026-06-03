@@ -68,7 +68,7 @@ fn compare_files(file1: &str, file2: &str) -> bool {
 fn pbf_to_pgdump() {
     let dumpdir_path = tempfile::tempdir().unwrap();
     let dumpdir = dumpdir_path.path().to_str().unwrap();
-    let mut db = postgres::Postgres::new("", None, false, dumpdir);
+    let mut db = postgres::Postgres::new(dumpdir);
     db.import(PBF).unwrap();
     drop(db);
 

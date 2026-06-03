@@ -1,8 +1,7 @@
-//! Access postgres+postgis database
+//! Dump OSM data to files that can be imported to a postgresql database with COPY.
 
 use geo_types::Coord;
 use osmpbfreader::objects::{Info, Node, Relation, Tags, Way};
-use postgres::{Client, NoTls};
 use rustc_hash::FxHashMap;
 use std::error::Error;
 use std::fs::File;
@@ -14,11 +13,6 @@ use time::macros::format_description;
 
 use crate::osm::OsmWriter;
 
-struct Statements {
-    client: Client,
-    schema: String,
-}
-
 struct Copy {
     nodes: BufWriter<File>,
     ways: BufWriter<File>,
@@ -29,7 +23,6 @@ struct Copy {
 }
 
 pub struct Postgres {
-    statements: Option<Statements>,
     copy: Copy,
     nodes: FxHashMap<i64, Coord>,
     users: FxHashMap<i32, smartstring::alias::String>,
@@ -39,23 +32,7 @@ pub struct Postgres {
 }
 
 impl Postgres {
-    pub fn new(connect: &str, schema: Option<String>, init_tables: bool, copy_dir: &str) -> Self {
-        let statements = if init_tables {
-            let mut client = Client::connect(connect, NoTls).unwrap();
-            if init_tables {
-                Postgres::init_tables(&mut client, &schema);
-            }
-            let schema = if let Some(mut s) = schema {
-                s.push('.');
-                s
-            } else {
-                String::from("")
-            };
-
-            Some(Statements { client, schema })
-        } else {
-            None
-        };
+    pub fn new(copy_dir: &str) -> Self {
         let nodes = BufWriter::new(File::create(Path::new(copy_dir).join("nodes.txt")).unwrap());
         let ways = BufWriter::new(File::create(Path::new(copy_dir).join("ways.txt")).unwrap());
         let way_nodes =
@@ -76,7 +53,6 @@ impl Postgres {
 
         Self {
             copy,
-            statements,
             nodes: FxHashMap::with_capacity_and_hasher(500000, Default::default()),
             users: FxHashMap::with_capacity_and_hasher(5000, Default::default()),
             line_buffer: Vec::with_capacity(1500), // big enough to store a complex node
@@ -84,42 +60,6 @@ impl Postgres {
                 "[year]-[month]-[day] [hour]:[minute]:[second][offset_hour sign:mandatory][offset_minute]"
             ),
         }
-    }
-
-    pub fn init_tables(client: &mut Client, schema: &Option<String>) {
-        let schema_sql = include_str!("../schema.sql");
-        let mut transaction = client.transaction().unwrap();
-        if let Some(schema) = schema {
-            transaction
-                .execute(&format!("SET search_path TO {schema},public"), &[])
-                .unwrap();
-        }
-        transaction.batch_execute(schema_sql).unwrap();
-        transaction.commit().unwrap();
-    }
-
-    pub fn truncate(&mut self) {
-        let statements = self.statements.as_mut().unwrap();
-        let client = &mut statements.client;
-        let schema = statements.schema.clone();
-        client
-            .execute(&format!("TRUNCATE {}nodes", schema), &[])
-            .unwrap();
-        client
-            .execute(&format!("TRUNCATE {}ways", schema), &[])
-            .unwrap();
-        client
-            .execute(&format!("TRUNCATE {}way_nodes", schema), &[])
-            .unwrap();
-        client
-            .execute(&format!("TRUNCATE {}relations", schema), &[])
-            .unwrap();
-        client
-            .execute(&format!("TRUNCATE {}relation_members", schema), &[])
-            .unwrap();
-        client
-            .execute(&format!("TRUNCATE {}users", schema), &[])
-            .unwrap();
     }
 
     fn to_hex_string(bytes: &[u8], output: &mut Vec<u8>) {
