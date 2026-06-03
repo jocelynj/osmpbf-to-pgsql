@@ -6,33 +6,6 @@ use std::fmt;
 use std::io;
 
 use crate::osmpbf;
-//use crate::osmxml;
-
-#[allow(clippy::cast_possible_truncation)]
-/// Convert a floating-point latitude/longitude to the decimicro format
-pub fn coord_to_decimicro(coord: f64) -> i32 {
-    (coord * 1e7).round() as i32
-}
-/// Convert a decimicro latitude/longitude to floating-point
-pub fn decimicro_to_coord(decimicro: i32) -> f64 {
-    f64::from(decimicro) * 1e-7
-}
-
-/// Action to apply to an Element
-#[derive(Clone, PartialEq)]
-pub enum Action {
-    Create(),
-    Modify(),
-    Delete(),
-    None,
-}
-
-/// Reader returning a node/way/relation from an osm id
-pub trait OsmReader {
-    fn read_node(&mut self, id: u64) -> Option<Node>;
-    fn read_way(&mut self, id: u64) -> Option<Way>;
-    fn read_relation(&mut self, id: u64) -> Option<Relation>;
-}
 
 /// Writer writing a new node/way/relation
 pub trait OsmWriter {
