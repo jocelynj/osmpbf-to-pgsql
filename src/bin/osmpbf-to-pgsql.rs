@@ -12,20 +12,20 @@ struct Args {
         help = "Connect string to Postgresql database",
         default_value = "host=/run/postgresql/"
     )]
-    pub psql: String,
+    psql: String,
     #[arg(long, help = "Osm PBF file to import")]
-    pub pbf: Option<String>,
+    pbf: Option<String>,
     #[arg(
         long,
         help = "Dump changes to files in specified directory to use with COPY"
     )]
-    pub dump: String,
+    dump: String,
     #[arg(long, help = "Postgresql schema to use")]
-    pub schema: Option<String>,
+    schema: Option<String>,
     #[arg(long, help = "Initialize tables")]
-    pub init: bool,
+    init: bool,
     #[arg(long, help = "Truncate tables before import")]
-    pub truncate: bool,
+    truncate: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

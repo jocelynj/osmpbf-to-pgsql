@@ -122,7 +122,7 @@ impl Postgres {
             .unwrap();
     }
 
-    pub fn to_hex_string(bytes: &[u8], output: &mut Vec<u8>) {
+    fn to_hex_string(bytes: &[u8], output: &mut Vec<u8>) {
         const HEX_CHARS: &[u8; 16] = b"0123456789ABCDEF";
         for &b in bytes {
             output.push(HEX_CHARS[(b >> 4) as usize]);
@@ -153,7 +153,7 @@ impl Postgres {
         }
     }
 
-    pub fn ids_to_vec(ids: &[i64], output: &mut Vec<u8>) {
+    fn ids_to_vec(ids: &[i64], output: &mut Vec<u8>) {
         write!(output, "{{").unwrap();
         let mut iter = ids.iter();
         // First item is special, so that we don't need to remove "," at the end
@@ -167,7 +167,7 @@ impl Postgres {
         write!(output, "}}").unwrap();
     }
 
-    pub fn escape_string(s: &str) -> String {
+    fn escape_string(s: &str) -> String {
         let mut out = String::with_capacity(s.len());
         for c in s.chars() {
             match c {
@@ -181,7 +181,7 @@ impl Postgres {
         out
     }
 
-    pub fn escape_key_value(s: &str, output: &mut Vec<u8>) {
+    fn escape_key_value(s: &str, output: &mut Vec<u8>) {
         // Differs from escape_string() as " is escaped with 2 slashes instead of 0.
         for c in s.chars() {
             match c {
@@ -208,7 +208,7 @@ impl Postgres {
         }
     }
 
-    pub fn tags_to_vec(tags: &Tags, output: &mut Vec<u8>) {
+    fn tags_to_vec(tags: &Tags, output: &mut Vec<u8>) {
         let mut iter = tags.iter();
         // First item is special, so that we don't need to remove "," at the end
         if let Some((k, v)) = iter.next() {
@@ -227,7 +227,7 @@ impl Postgres {
         }
     }
 
-    pub fn object_to_line_buffer(&mut self, id: i64, info: &Info, tags: &Tags) {
+    fn object_to_line_buffer(&mut self, id: i64, info: &Info, tags: &Tags) {
         let version: i32 = info.version.map(|n| n.get()).unwrap_or(0);
         let user_id: i32 = info.uid.map(|n| n.get()).unwrap_or(0);
         let timestamp: i64 = info.timestamp.map(|n| n.get()).unwrap_or(0);
